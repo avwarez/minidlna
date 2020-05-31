@@ -1,0 +1,107 @@
+--- a/metadata.c
++++ b/metadata.c
+@@ -31,6 +31,9 @@
+ #include <libexif/exif-loader.h>
+ #include <jpeglib.h>
+ #include <setjmp.h>
++#include <regex.h>
++#include <libgen.h>
++#include <glob.h>
+ #include "libav.h"
+ 
+ #include "upnpglobalvars.h"
+@@ -115,6 +118,32 @@ dlna_timestamp_is_present(const char *filename, int *raw_packet_size)
+ 	return 0;
+ }
+ 
++char
++* glob_pattern(char *wildcard)
++{
++	char *gfilename;
++	size_t cnt = 0, length = 0;
++	glob_t glob_results;
++	char **p;
++
++	glob(wildcard, GLOB_NOCHECK, 0, &glob_results);
++
++	for (p = glob_results.gl_pathv, cnt = glob_results.gl_pathc;
++		cnt; p++, cnt--)
++	length += strlen(*p) + 1;
++
++	gfilename = (char *) calloc(length, sizeof(char));
++	for (p = glob_results.gl_pathv, cnt = glob_results.gl_pathc; cnt; p++, cnt--)
++	{
++		strcat(gfilename, *p);
++		if (cnt > 1)
++			strcat(gfilename, " ");
++	}
++
++	globfree(&glob_results);
++	return gfilename;
++}
++
+ void
+ check_for_captions(const char *path, int64_t detailID)
+ {
+@@ -147,6 +176,61 @@ check_for_captions(const char *path, int64_t detailID)
+ 		ret = access(file, R_OK);
+ 	}
+ 
++	if (ret != 0)
++	{
++			regex_t re;
++
++			if (regcomp(&re, "([0-9]?[0-9])[.]?[e,x,E,X]([0-9]*)", REG_EXTENDED) != 0)
++			{
++				DPRINTF(E_DEBUG, L_METADATA, "Failed to compile regex\n");
++				return;
++			}
++
++			char *dirc, *basec, *bname, *dname;
++
++			dirc = strdup(file);
++			basec = strdup(file);
++			dname = dirname(dirc);
++			bname = basename(basec);
++
++			size_t maxGroups = 3;
++			regmatch_t groupArray[maxGroups];
++
++			int retval = regexec(&re, bname, maxGroups, groupArray, 0);
++
++			if (retval == 0 && groupArray[1].rm_so != -1)
++			{
++				char season[groupArray[1].rm_eo - groupArray[1].rm_so +1];
++				memset(season, 0, sizeof(season));
++				strncpy(season, bname+groupArray[1].rm_so, groupArray[1].rm_eo - groupArray[1].rm_so);
++
++				char episode[groupArray[2].rm_eo - groupArray[2].rm_so +1];
++				memset(episode, 0, sizeof(episode));
++				strncpy(episode, bname+groupArray[2].rm_so, groupArray[2].rm_eo - groupArray[2].rm_so);
++
++				char fpattern[100] = "";
++				strcat(fpattern, dname);
++				strcat(fpattern, "/*");
++				strcat(fpattern, season);
++				strcat(fpattern, "*");
++				strcat(fpattern, episode);
++				strcat(fpattern, "*.srt");
++
++				char *subt = glob_pattern(fpattern);
++				if (strcmp(fpattern, subt) != 0)
++				{
++						strcpy(file, subt);
++						DPRINTF(E_DEBUG, L_METADATA, "subt=%s\n", file);
++				}
++			}
++
++			regfree(&re);
++			free(dirc);
++			free(basec);
++
++		ret = access(file, R_OK);
++	}
++
+ 	if (ret == 0)
+ 	{
+ 		sql_exec(db, "INSERT OR REPLACE into CAPTIONS"
