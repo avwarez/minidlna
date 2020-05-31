@@ -1,10 +1,10 @@
 FROM alpine:3.11
 WORKDIR /app
 RUN mkdir -p /usr/src && \
-    apk add --no-cache git autoconf g++ ffmpeg-dev jpeg-dev sqlite-dev libexif-dev libid3tag-dev libogg-dev libvorbis-dev flac-dev make bsd-compat-headers
+    apk add --no-cache git autoconf g++ ffmpeg-dev jpeg-dev sqlite-dev libexif-dev libid3tag-dev libogg-dev libvorbis-dev flac-dev make bsd-compat-headers automake gettext-dev
 COPY . /usr/src/minidlna-git
-#COPY minidlna-git /usr/src/minidlna-git
 RUN cd /usr/src/minidlna-git && \
+    ./autogen.sh && \
     ./configure --prefix=/app && \
     make && \
     make install
