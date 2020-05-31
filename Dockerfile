@@ -15,7 +15,7 @@ ENV HOME=/app
 ENV CONFIG_FILE=/config/minidlna.conf
 WORKDIR /app
 COPY --from=0 /app/sbin /usr/local/sbin/
-RUN apk add --no-cache ffmpeg-libs libjpeg sqlite-libs libexif libid3tag libogg libvorbis flac && \
+RUN apk add --no-cache ffmpeg-libs libjpeg sqlite-libs libexif libid3tag libogg libvorbis flac libintl && \
     mkdir /config && \
     mkdir -p /var/cache/minidlna
 CMD /usr/local/sbin/minidlnad -d -f $CONFIG_FILE
